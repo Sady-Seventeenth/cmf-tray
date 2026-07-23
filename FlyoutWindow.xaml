@@ -1,0 +1,149 @@
+<Window x:Class="CmfTray.FlyoutWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        ShowInTaskbar="False" Topmost="True" ResizeMode="NoResize"
+        SizeToContent="WidthAndHeight" Deactivated="Window_Deactivated">
+
+    <Window.Resources>
+        <SolidColorBrush x:Key="White" Color="#FFFFFFFF"/>
+        <SolidColorBrush x:Key="White70" Color="#B3FFFFFF"/>
+        <SolidColorBrush x:Key="IconDark" Color="#FF1E1E1E"/>
+        <SolidColorBrush x:Key="Track" Color="#FF2B2F33"/>
+        <SolidColorBrush x:Key="Fill" Color="#FFD9D9D9"/>
+        <SolidColorBrush x:Key="InsetBg" Color="#80000000"/>
+        <SolidColorBrush x:Key="Dot" Color="#FFA9AEB2"/>
+    </Window.Resources>
+
+    <!-- Scale the 220x152 design up crisply -->
+    <Viewbox Width="360" Stretch="Uniform">
+        <Border Width="220" CornerRadius="12" Background="#4D121417">
+            <Grid Margin="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- ============ Header ============ -->
+                    <Grid Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock x:Name="TxtName" Text="CMF Buds" Foreground="{StaticResource White}"
+                                       FontFamily="Inter, Segoe UI" FontWeight="Medium" FontSize="12"/>
+                            <TextBlock x:Name="TxtStatus" Text="Disconnected" Foreground="{StaticResource White70}"
+                                       FontFamily="Inter, Segoe UI" FontSize="8"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                            <!-- L -->
+                            <StackPanel Width="30" Margin="0,0,16,0">
+                                <Grid>
+                                    <TextBlock Text="L" Foreground="{StaticResource White}" FontFamily="Inter, Segoe UI" FontSize="8" HorizontalAlignment="Left"/>
+                                    <TextBlock x:Name="BatLPct" Text="100%" Foreground="{StaticResource White}" FontFamily="Inter, Segoe UI" FontSize="8" HorizontalAlignment="Right"/>
+                                </Grid>
+                                <Border Height="2" CornerRadius="1" Background="{StaticResource Track}" Margin="0,3,0,0">
+                                    <Rectangle x:Name="BatLFill" Fill="{StaticResource Fill}" HorizontalAlignment="Left" Width="30"/>
+                                </Border>
+                            </StackPanel>
+                            <!-- R -->
+                            <StackPanel Width="30">
+                                <Grid>
+                                    <TextBlock Text="R" Foreground="{StaticResource White}" FontFamily="Inter, Segoe UI" FontSize="8" HorizontalAlignment="Left"/>
+                                    <TextBlock x:Name="BatRPct" Text="100%" Foreground="{StaticResource White}" FontFamily="Inter, Segoe UI" FontSize="8" HorizontalAlignment="Right"/>
+                                </Grid>
+                                <Border Height="2" CornerRadius="1" Background="{StaticResource Track}" Margin="0,3,0,0">
+                                    <Rectangle x:Name="BatRFill" Fill="{StaticResource Fill}" HorizontalAlignment="Left" Width="30"/>
+                                </Border>
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- ============ Noise control ============ -->
+                    <StackPanel Grid.Row="1" Margin="0,12,0,0">
+                        <TextBlock Text="Noise control" Foreground="{StaticResource White}" FontFamily="Inter, Segoe UI" FontSize="10"/>
+
+                        <Border Height="20" CornerRadius="10" Background="{StaticResource InsetBg}" Padding="2" Margin="0,6,0,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <Border x:Name="SegNoise" Grid.Column="0" CornerRadius="9" Background="Transparent" MouseLeftButtonUp="SegNoise_Click" Cursor="Hand">
+                                    <Grid Width="10" Height="10">
+                                        <Ellipse x:Name="NoiseRing" Width="9" Height="9" Stroke="{StaticResource White}" StrokeThickness="0.9"/>
+                                        <Ellipse x:Name="NoiseDot" Width="2.4" Height="2.4" Fill="{StaticResource White}"/>
+                                    </Grid>
+                                </Border>
+
+                                <Border x:Name="SegTrans" Grid.Column="1" CornerRadius="9" Background="Transparent" MouseLeftButtonUp="SegTrans_Click" Cursor="Hand">
+                                    <Grid Width="10" Height="10">
+                                        <Ellipse x:Name="TransRing" Width="9" Height="9" Stroke="{StaticResource White}" StrokeThickness="1.1"
+                                                 StrokeDashArray="0,2" StrokeDashCap="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                        <Ellipse x:Name="TransDot" Width="2.4" Height="2.4" Fill="{StaticResource White}"/>
+                                    </Grid>
+                                </Border>
+
+                                <Border x:Name="SegOff" Grid.Column="2" CornerRadius="9" Background="Transparent" MouseLeftButtonUp="SegOff_Click" Cursor="Hand">
+                                    <Grid Width="10" Height="10">
+                                        <Ellipse x:Name="OffRing" Width="9" Height="9" Stroke="{StaticResource White}" StrokeThickness="0.9"/>
+                                        <Line x:Name="OffLine" X1="1.6" Y1="8.4" X2="8.4" Y2="1.6" Stroke="{StaticResource White}" StrokeThickness="0.9"/>
+                                    </Grid>
+                                </Border>
+                            </Grid>
+                        </Border>
+
+                        <Grid Margin="0,4,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Noise cancellation" Foreground="{StaticResource White}" FontFamily="Inter, Segoe UI" FontSize="6" TextAlignment="Center" TextWrapping="Wrap"/>
+                            <TextBlock Grid.Column="1" Text="Transparency" Foreground="{StaticResource White}" FontFamily="Inter, Segoe UI" FontSize="6" TextAlignment="Center"/>
+                            <TextBlock Grid.Column="2" Text="Off" Foreground="{StaticResource White}" FontFamily="Inter, Segoe UI" FontSize="6" TextAlignment="Center"/>
+                        </Grid>
+                    </StackPanel>
+
+                    <!-- ============ Ultra base ============ -->
+                    <StackPanel Grid.Row="2" Margin="0,14,0,0">
+                        <Grid>
+                            <TextBlock Text="Ultra base" Foreground="{StaticResource White}" FontFamily="Inter, Segoe UI" FontSize="10" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                            <Border x:Name="BassToggleBg" Width="21.5" Height="12" CornerRadius="6" Background="{StaticResource InsetBg}"
+                                    HorizontalAlignment="Right" Padding="1.3" MouseLeftButtonUp="BassToggle_Click" Cursor="Hand">
+                                <Ellipse x:Name="BassKnob" Width="9.5" Height="9.5" Fill="{StaticResource White}" HorizontalAlignment="Left"/>
+                            </Border>
+                        </Grid>
+
+                        <Border x:Name="BassSlider" Height="18" CornerRadius="10" Background="{StaticResource InsetBg}" Margin="0,6,0,0"
+                                MouseLeftButtonDown="BassSlider_Click" Cursor="Hand" ClipToBounds="True">
+                            <Grid>
+                                <Border x:Name="BassFill" Background="{StaticResource White}" CornerRadius="8" HorizontalAlignment="Left" Width="116" Margin="2"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Ellipse Grid.Column="0" Width="3" Height="3" Fill="{StaticResource Dot}"/>
+                                    <Ellipse Grid.Column="1" Width="3" Height="3" Fill="{StaticResource Dot}"/>
+                                    <Ellipse Grid.Column="2" Width="3" Height="3" Fill="{StaticResource Dot}"/>
+                                    <Ellipse Grid.Column="3" Width="3" Height="3" Fill="{StaticResource Dot}"/>
+                                    <Ellipse Grid.Column="4" Width="3" Height="3" Fill="{StaticResource Dot}"/>
+                                </Grid>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+            </Grid>
+        </Border>
+    </Viewbox>
+</Window>

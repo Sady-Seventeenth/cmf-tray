@@ -1,0 +1,18 @@
+# Build output
+bin/
+obj/
+publish/
+
+# Local checkpoints / diagnostics
+.checkpoints/
+probe-log.txt
+anc-map-log.txt
+flyout-shot.png
+
+# IDE / user files
+.vs/
+*.user
+*.suo
+
+# Local tooling
+.claude/
