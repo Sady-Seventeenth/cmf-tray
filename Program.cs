@@ -17,6 +17,13 @@ internal static class Program
         if (args.Contains("--shot"))
             return Shot();
 
+        // Single instance: if one is already running, just exit quietly.
+        using var mutex = new System.Threading.Mutex(true, @"Global\CmfTray_SingleInstance", out bool isNew);
+        if (!isNew) return 0;
+
+        // Log any startup/runtime crash so a failed login-launch isn't silent.
+        AppDomain.CurrentDomain.UnhandledException += (_, e) => LogCrash(e.ExceptionObject as Exception);
+
         // Default: system tray app. WPF hosts the flyout window; a WinForms NotifyIcon
         // provides the tray icon. Run the WPF message loop with no main window.
         System.Windows.Forms.Application.EnableVisualStyles();
@@ -24,9 +31,29 @@ internal static class Program
         {
             ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown,
         };
-        using var app = new TrayApp(wpf);
-        wpf.Run();
-        return 0;
+        wpf.DispatcherUnhandledException += (_, e) => { LogCrash(e.Exception); e.Handled = true; };
+
+        try
+        {
+            using var app = new TrayApp(wpf);
+            wpf.Run();
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            LogCrash(ex);
+            return 1;
+        }
+    }
+
+    private static void LogCrash(Exception? ex)
+    {
+        try
+        {
+            string dir = Path.GetDirectoryName(Environment.ProcessPath) ?? AppContext.BaseDirectory;
+            File.AppendAllText(Path.Combine(dir, "startup-error.log"), $"{DateTime.Now:s}  {ex}\n\n");
+        }
+        catch { /* logging must never throw */ }
     }
 
     /// <summary>Render the flyout with sample data to a PNG so the design can be verified headlessly.</summary>
