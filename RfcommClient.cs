@@ -24,14 +24,14 @@ public sealed class RfcommClient : IDisposable
     public event Action<string>? Log;
     public event Action? Disconnected;
 
-    public sealed record Candidate(string Name, BluetoothAddress Address, bool Authenticated);
+    public sealed record Candidate(string Name, BluetoothAddress Address, bool Authenticated, bool Connected);
 
     /// <summary>Paired devices whose name looks like Nothing/CMF earbuds (best guess, plus everything else).</summary>
     public static IReadOnlyList<Candidate> ListPairedEarbuds()
     {
         using var cli = new BluetoothClient();
         var all = cli.PairedDevices
-            .Select(d => new Candidate(d.DeviceName ?? "(unknown)", d.DeviceAddress, d.Authenticated))
+            .Select(d => new Candidate(d.DeviceName ?? "(unknown)", d.DeviceAddress, d.Authenticated, d.Connected))
             .ToList();
 
         static bool Looks(string n) =>

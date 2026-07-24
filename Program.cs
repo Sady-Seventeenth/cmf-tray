@@ -114,6 +114,7 @@ internal static class Program
         Out("Paired devices:");
         for (int i = 0; i < candidates.Count; i++)
             Out($"  [{i}] {candidates[i].Name}  ({candidates[i].Address})" +
+                (candidates[i].Connected ? "  [connected]" : "") +
                 (candidates[i].Authenticated ? "" : "  (not authenticated)"));
 
         int idx = 0;

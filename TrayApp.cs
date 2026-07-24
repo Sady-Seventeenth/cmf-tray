@@ -1,4 +1,5 @@
 using System.Drawing.Drawing2D;
+using System.Runtime.InteropServices;
 using System.Windows.Threading;
 using Microsoft.Win32;
 
@@ -17,7 +18,8 @@ public sealed class TrayApp : IDisposable
     private readonly RfcommClient _client = new();
     private readonly DispatcherTimer _battTimer = new() { Interval = TimeSpan.FromSeconds(60) };
     private readonly DispatcherTimer _stateTimer = new() { Interval = TimeSpan.FromSeconds(4) };
-    private readonly DispatcherTimer _reconnectTimer = new() { Interval = TimeSpan.FromSeconds(5) };
+    private readonly DispatcherTimer _reconnectTimer = new() { Interval = TimeSpan.FromSeconds(6) };
+    private readonly DispatcherTimer _trimTimer = new() { Interval = TimeSpan.FromMinutes(2) };
 
     private Protocol.Cell _battery;
     private Protocol.AncMode? _ancMode;
@@ -52,14 +54,21 @@ public sealed class TrayApp : IDisposable
         // Battery refresh + a liveness poll (a failed send flips us to disconnected).
         _battTimer.Tick += (_, _) => { if (_client.IsConnected) TrySend(Protocol.ReadBattery()); };
         _stateTimer.Tick += (_, _) => { if (_client.IsConnected) TrySend(Protocol.ReadAnc()); };
-        // Keep trying to (re)connect whenever we're not connected.
+        // Cheap watcher: only opens the control channel when the buds are on THIS PC.
         _reconnectTimer.Tick += (_, _) => { if (!_client.IsConnected) BeginAutoConnect(); };
+        // Keep the idle footprint small.
+        _trimTimer.Tick += (_, _) => TrimMemory();
         _battTimer.Start();
         _stateTimer.Start();
         _reconnectTimer.Start();
+        _trimTimer.Start();
 
         _flyout.UpdateConnected("CMF Buds", false);
-        BeginAutoConnect();
+        // First connection attempt is deferred to the reconnect timer so startup stays light.
+        // Trim the working set a few seconds after launch, once WPF/Bluetooth init settles.
+        var warmup = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        warmup.Tick += (_, _) => { warmup.Stop(); TrimMemory(); };
+        warmup.Start();
     }
 
     private void RefreshState()
@@ -131,23 +140,30 @@ public sealed class TrayApp : IDisposable
 
     // ---------------------------------------------------------------- connection
 
-    /// <summary>Pick the most likely earbuds and connect (guarded so attempts never overlap).</summary>
+    /// <summary>
+    /// Cheaply check whether the earbuds are actually connected to this PC, and only then open
+    /// the control channel. When they're not present we do nothing — no blocking connect attempts,
+    /// no background churn. This is what keeps the idle footprint tiny.
+    /// </summary>
     private void BeginAutoConnect()
     {
         if (_connecting || _client.IsConnected) return;
         _connecting = true;
-        Post(() => _flyout.SetStatus("Connecting…"));
         Task.Run(() =>
         {
             try
             {
                 var list = RfcommClient.ListPairedEarbuds();
                 var target = list.Count > 0 ? list[0] : null;
-                if (target is null)
+
+                // Not paired, or not currently connected to this PC → stay idle and quiet.
+                if (target is null || !target.Connected)
                 {
-                    Post(() => _flyout.UpdateConnected("CMF Buds", false));
+                    Post(() => _flyout.UpdateConnected(target?.Name ?? _device?.Name ?? "CMF Buds", false));
                     return;
                 }
+
+                Post(() => _flyout.SetStatus("Connecting…"));
                 ConnectCore(target);
             }
             catch
@@ -202,6 +218,7 @@ public sealed class TrayApp : IDisposable
         _flyout.UpdateConnected(_device?.Name ?? "CMF Buds", false);
         _flyout.UpdateBattery(default);
         _flyout.UpdateAnc(null);
+        TrimMemory(); // going idle — release memory back
     }
 
     /// <summary>Send a frame; on any failure, tear down so the reconnect loop can recover.</summary>
@@ -254,6 +271,11 @@ public sealed class TrayApp : IDisposable
 
     private void Notify(string msg) => _tray.ShowBalloonTip(4000, "CMF Tray", msg, ToolTipIcon.Info);
 
+    // Trim the working set so an idle tray app doesn't sit on ~100 MB of RAM.
+    [DllImport("kernel32.dll")] private static extern IntPtr GetCurrentProcess();
+    [DllImport("psapi.dll")] private static extern bool EmptyWorkingSet(IntPtr hProcess);
+    private static void TrimMemory() { try { EmptyWorkingSet(GetCurrentProcess()); } catch { } }
+
     /// <summary>Draws a simple round tray icon (green ring when connected).</summary>
     private static Icon MakeIcon(bool connected)
     {
@@ -282,6 +304,7 @@ public sealed class TrayApp : IDisposable
         _battTimer.Stop();
         _stateTimer.Stop();
         _reconnectTimer.Stop();
+        _trimTimer.Stop();
         _client.Dispose();
         try { _flyout.Close(); } catch { }
         _tray.Dispose();
