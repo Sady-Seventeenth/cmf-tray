@@ -17,6 +17,12 @@ internal static class Program
         if (args.Contains("--shot"))
             return Shot();
 
+        if (args.Contains("--icons"))
+            return IconsPreview();
+
+        if (args.Contains("--svgicon"))
+            return SvgIconPreview();
+
         // Single instance: if one is already running, just exit quietly.
         using var mutex = new System.Threading.Mutex(true, @"Global\CmfTray_SingleInstance", out bool isNew);
         if (!isNew) return 0;
@@ -54,6 +60,101 @@ internal static class Program
             File.AppendAllText(Path.Combine(dir, "startup-error.log"), $"{DateTime.Now:s}  {ex}\n\n");
         }
         catch { /* logging must never throw */ }
+    }
+
+    /// <summary>Preview the SVG-based tray icon at real sizes on dark + light bars.</summary>
+    private static int SvgIconPreview()
+    {
+        using var connected = IconFactory.MakeFromSvg(true, 64);
+        using var disc = IconFactory.MakeFromSvg(false, 64);
+        using var cb = connected.ToBitmap();
+        using var db = disc.ToBitmap();
+
+        int zoom = 128, pad = 24;
+        using var bmp = new System.Drawing.Bitmap(pad * 5 + zoom * 3, pad * 2 + zoom + 60);
+        using var g = System.Drawing.Graphics.FromImage(bmp);
+        g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+        g.Clear(System.Drawing.Color.FromArgb(60, 60, 63));
+        using var head = new System.Drawing.Font("Segoe UI", 11, System.Drawing.FontStyle.Bold);
+
+        // dark strip (connected + disconnected zoomed, plus 16/24/32 actual)
+        using (var bg = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(32, 32, 34)))
+            g.FillRectangle(bg, 0, 0, bmp.Width, pad + zoom + 20);
+        g.DrawString("Dark taskbar — connected / disconnected / real sizes", head, System.Drawing.Brushes.White, 12, 6);
+        g.DrawImage(cb, new System.Drawing.Rectangle(pad, 30, zoom, zoom));
+        g.DrawImage(db, new System.Drawing.Rectangle(pad * 2 + zoom, 30, zoom, zoom));
+        g.DrawImage(cb, new System.Drawing.Rectangle(pad * 3 + zoom * 2, 30, 32, 32));
+        g.DrawImage(cb, new System.Drawing.Rectangle(pad * 3 + zoom * 2, 70, 24, 24));
+        g.DrawImage(cb, new System.Drawing.Rectangle(pad * 3 + zoom * 2, 100, 16, 16));
+
+        string path = Path.Combine(AppContext.BaseDirectory, "svg-icon-preview.png");
+        bmp.Save(path, System.Drawing.Imaging.ImageFormat.Png);
+        return 0;
+    }
+
+    /// <summary>Render all tray-icon styles at real sizes on dark + light bars → icons-preview.png.</summary>
+    private static int IconsPreview()
+    {
+        var styles = new[]
+        {
+            (IconFactory.Style.Earbud,    "A  earbud"),
+            (IconFactory.Style.Headphone, "B  headphone"),
+            (IconFactory.Style.DotRing,   "C  dot-ring"),
+            (IconFactory.Style.BudWaves,  "D  bud + waves"),
+        };
+
+        int zoom = 96, gap = 28, colW = zoom + gap, left = 30, top = 46;
+        int w = left + styles.Length * colW;
+        int rowH = 150;
+        using var bmp = new System.Drawing.Bitmap(w, top + rowH * 2 + 20);
+        using var g = System.Drawing.Graphics.FromImage(bmp);
+        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        g.Clear(System.Drawing.Color.FromArgb(60, 60, 63));
+
+        var rows = new[]
+        {
+            (System.Drawing.Color.FromArgb(32, 32, 34), "On a DARK taskbar (default)"),
+            (System.Drawing.Color.FromArgb(238, 238, 240), "On a LIGHT taskbar"),
+        };
+
+        using var label = new System.Drawing.Font("Segoe UI", 10);
+        using var head = new System.Drawing.Font("Segoe UI", 11, System.Drawing.FontStyle.Bold);
+
+        for (int r = 0; r < rows.Length; r++)
+        {
+            int rowY = top + r * rowH;
+            using (var bg = new System.Drawing.SolidBrush(rows[r].Item1))
+                g.FillRectangle(bg, 0, rowY - 10, w, rowH);
+            bool light = r == 1;
+            var textColor = light ? System.Drawing.Color.Black : System.Drawing.Color.White;
+            using var tb = new System.Drawing.SolidBrush(textColor);
+            g.DrawString(rows[r].Item2, head, tb, 12, rowY - 6);
+
+            for (int i = 0; i < styles.Length; i++)
+            {
+                int x = left + i * colW;
+                // zoomed icon (render at 32 then scale up)
+                using (var ic = new System.Drawing.Bitmap(32, 32))
+                {
+                    using (var ig = System.Drawing.Graphics.FromImage(ic))
+                    {
+                        ig.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                        ig.Clear(System.Drawing.Color.Transparent);
+                        IconFactory.Draw(styles[i].Item1, ig, 32, light ? System.Drawing.Color.FromArgb(30, 30, 30) : System.Drawing.Color.White);
+                    }
+                    g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                    g.DrawImage(ic, new System.Drawing.Rectangle(x, rowY + 18, zoom, zoom));
+                    // real 16px + 24px
+                    g.DrawImage(ic, new System.Drawing.Rectangle(x + zoom + 4, rowY + 18, 16, 16));
+                    g.DrawImage(ic, new System.Drawing.Rectangle(x + zoom + 4, rowY + 40, 24, 24));
+                }
+                g.DrawString(styles[i].Item2, label, r == 1 ? System.Drawing.Brushes.Black : System.Drawing.Brushes.White, x, rowY + zoom + 22);
+            }
+        }
+
+        string path = Path.Combine(AppContext.BaseDirectory, "icons-preview.png");
+        bmp.Save(path, System.Drawing.Imaging.ImageFormat.Png);
+        return 0;
     }
 
     /// <summary>Render the flyout with sample data to a PNG so the design can be verified headlessly.</summary>

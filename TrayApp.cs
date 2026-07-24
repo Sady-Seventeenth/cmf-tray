@@ -1,4 +1,3 @@
-using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
 using System.Windows.Threading;
 using Microsoft.Win32;
@@ -276,21 +275,8 @@ public sealed class TrayApp : IDisposable
     [DllImport("psapi.dll")] private static extern bool EmptyWorkingSet(IntPtr hProcess);
     private static void TrimMemory() { try { EmptyWorkingSet(GetCurrentProcess()); } catch { } }
 
-    /// <summary>Draws a simple round tray icon (green ring when connected).</summary>
-    private static Icon MakeIcon(bool connected)
-    {
-        using var bmp = new Bitmap(32, 32);
-        using (var g = Graphics.FromImage(bmp))
-        {
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-            g.Clear(Color.Transparent);
-            using var ring = new Pen(connected ? Color.FromArgb(80, 220, 120) : Color.FromArgb(150, 150, 150), 4);
-            g.DrawEllipse(ring, 4, 4, 23, 23);
-            using var dot = new SolidBrush(connected ? Color.FromArgb(80, 220, 120) : Color.FromArgb(110, 110, 110));
-            g.FillEllipse(dot, 12, 12, 8, 8);
-        }
-        return Icon.FromHandle(bmp.GetHicon());
-    }
+    /// <summary>Tray icon: the Nothing/CMF earbuds logo (white when connected, grey when not).</summary>
+    private static Icon MakeIcon(bool connected) => IconFactory.MakeFromSvg(connected);
 
     private void Quit()
     {
