@@ -112,10 +112,10 @@
                         </Grid>
                     </StackPanel>
 
-                    <!-- ============ Ultra base ============ -->
+                    <!-- ============ Ultra bass ============ -->
                     <StackPanel Grid.Row="2" Margin="0,14,0,0">
                         <Grid>
-                            <TextBlock Text="Ultra base" Foreground="{StaticResource White}" FontFamily="Inter, Segoe UI" FontSize="10" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                            <TextBlock Text="Ultra bass" Foreground="{StaticResource White}" FontFamily="Inter, Segoe UI" FontSize="10" HorizontalAlignment="Left" VerticalAlignment="Center"/>
                             <Border x:Name="BassToggleBg" Width="21.5" Height="12" CornerRadius="6" Background="{StaticResource InsetBg}"
                                     HorizontalAlignment="Right" Padding="1.3" MouseLeftButtonUp="BassToggle_Click" Cursor="Hand">
                                 <Ellipse x:Name="BassKnob" Width="9.5" Height="9.5" Fill="{StaticResource White}" HorizontalAlignment="Left"/>
