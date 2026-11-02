@@ -19,6 +19,11 @@ public partial class FlyoutWindow : Window
     private static readonly Brush Dark = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E));
     private static readonly Brush Clear = Brushes.Transparent;
 
+    private Brush _accentBrush = new SolidColorBrush(Color.FromRgb(0xD7, 0x19, 0x20));
+    private Brush _contrastBrush = Brushes.White;
+    private Brush _subtleBrush = new SolidColorBrush(Color.FromArgb(0x35, 0xD7, 0x19, 0x20));
+    private WallpaperTheme _theme = WallpaperTheme.Default();
+
     private const int TrackWidth = 30;   // battery bar width (design units)
     private const int SliderSpan = 200;  // usable slider width for the bass fill
     private const int MaxBass = 5;
@@ -26,19 +31,45 @@ public partial class FlyoutWindow : Window
     public Action<Protocol.AncMode>? SetAnc;
     public Action<bool>? SetBassEnabled;
     public Action<int>? SetBassLevel;
+    public Action? ToggleAudioSource;
     public Action? OnShown;
 
     private Protocol.AncMode? _anc;
     private bool _bassOn;
     private int _bassLevel;
+    private bool _phoneAudioActive;
     private DateTime _lastHide = DateTime.MinValue;
 
     public FlyoutWindow()
     {
         InitializeComponent();
         Dark.Freeze();
+        ApplyTheme();
         RefreshAnc();
         RefreshBass();
+        RefreshAudioSource();
+    }
+
+    public void ApplyTheme()
+    {
+        try
+        {
+            _theme = WallpaperTheme.Extract();
+            _accentBrush = new SolidColorBrush(_theme.Accent); _accentBrush.Freeze();
+            _contrastBrush = new SolidColorBrush(_theme.ContrastOnAccent); _contrastBrush.Freeze();
+            _subtleBrush = new SolidColorBrush(_theme.AccentSubtle); _subtleBrush.Freeze();
+
+            var cardBrush = new SolidColorBrush(_theme.CardBg); cardBrush.Freeze();
+            MainCard.Background = cardBrush;
+            BatLFill.Fill = _accentBrush;
+            BatRFill.Fill = _accentBrush;
+
+            ApplyAcrylicBlur(_theme.AcrylicGradient);
+            RefreshAnc();
+            RefreshBass();
+            RefreshAudioSource();
+        }
+        catch { }
     }
 
     // ---------- Windows acrylic blur-behind (SetWindowCompositionAttribute) ----------
@@ -57,35 +88,84 @@ public partial class FlyoutWindow : Window
     {
         base.OnSourceInitialized(e);
         var hwnd = new WindowInteropHelper(this).Handle;
-
-        // Rounded corners + dark mode (Win11).
-        int round = 2, dark = 1;
-        DwmSetWindowAttribute(hwnd, 33, ref round, sizeof(int));
-        DwmSetWindowAttribute(hwnd, 20, ref dark, sizeof(int));
-
-        // Acrylic blur behind. GradientColor is 0xAABBGGRR — low alpha so the blur shows through.
-        var accent = new AccentPolicy
-        {
-            AccentState = (int)AccentState.EnableAcrylicBlurBehind,
-            AccentFlags = 2,
-            GradientColor = 0x33171412,
-            AnimationId = 0,
-        };
-        int size = Marshal.SizeOf<AccentPolicy>();
-        IntPtr ptr = Marshal.AllocHGlobal(size);
-        try
-        {
-            Marshal.StructureToPtr(accent, ptr, false);
-            var data = new WindowCompositionAttributeData { Attribute = 19, Data = ptr, SizeOfData = size };
-            SetWindowCompositionAttribute(hwnd, ref data);
-        }
-        finally { Marshal.FreeHGlobal(ptr); }
+        int corner = 2; // DWMWCP_ROUND
+        DwmSetWindowAttribute(hwnd, 33, ref corner, sizeof(int));
+        ApplyAcrylicBlur(_theme.AcrylicGradient);
     }
 
-    // ---------- click handlers ----------
+    private void ApplyAcrylicBlur(uint gradientColor)
+    {
+        var hwnd = new WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero) return;
+
+        var policy = new AccentPolicy
+        {
+            AccentState = (int)AccentState.EnableAcrylicBlurBehind,
+            GradientColor = gradientColor,
+        };
+        int policySize = Marshal.SizeOf(policy);
+        IntPtr policyPtr = Marshal.AllocHGlobal(policySize);
+        try
+        {
+            Marshal.StructureToPtr(policy, policyPtr, false);
+            var data = new WindowCompositionAttributeData
+            {
+                Attribute = 19, // WCA_ACCENT_POLICY
+                Data = policyPtr,
+                SizeOfData = policySize,
+            };
+            SetWindowCompositionAttribute(hwnd, ref data);
+        }
+        catch { }
+        finally
+        {
+            Marshal.FreeHGlobal(policyPtr);
+        }
+    }
+
+    // ---------- open / close ----------
+    public void ToggleAtTray()
+    {
+        if (IsVisible)
+        {
+            Hide();
+            return;
+        }
+
+        if ((DateTime.UtcNow - _lastHide).TotalMilliseconds < 250)
+            return;
+
+        ShowAtTray();
+    }
+
+    public void ShowAtTray()
+    {
+        ApplyTheme();
+        PositionAboveTray();
+        Show();
+        Activate();
+        OnShown?.Invoke();
+    }
+
+    private void PositionAboveTray()
+    {
+        var wa = SystemParameters.WorkArea;
+        double w = 360;
+        double h = 260;
+        Left = wa.Right - w - 12;
+        Top  = wa.Bottom - h - 12;
+    }
+
+    private void Window_Deactivated(object? sender, EventArgs e)
+    {
+        _lastHide = DateTime.UtcNow;
+        Hide();
+    }
+
+    // ---------- interactions ----------
     private void SegNoise_Click(object sender, MouseButtonEventArgs e) => SetAnc?.Invoke(Protocol.AncMode.AncHigh);
     private void SegTrans_Click(object sender, MouseButtonEventArgs e) => SetAnc?.Invoke(Protocol.AncMode.Transparency);
-    private void SegOff_Click(object sender, MouseButtonEventArgs e) => SetAnc?.Invoke(Protocol.AncMode.Off);
+    private void SegOff_Click(object sender, MouseButtonEventArgs e)   => SetAnc?.Invoke(Protocol.AncMode.Off);
 
     private void BassToggle_Click(object sender, MouseButtonEventArgs e)
     {
@@ -103,9 +183,20 @@ public partial class FlyoutWindow : Window
         SetBassLevel?.Invoke(_bassLevel);
     }
 
-    // ---------- state from device ----------
+    private void AudioSwitch_Click(object sender, MouseButtonEventArgs e)
+    {
+        ToggleAudioSource?.Invoke();
+    }
+
+    // ---------- thread-safe state setters ----------
     public void UpdateBattery(Protocol.Cell b)
     {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(() => UpdateBattery(b));
+            return;
+        }
+
         Set(BatLPct, BatLFill, b.LeftPct, b.LeftCharging);
         Set(BatRPct, BatRFill, b.RightPct, b.RightCharging);
 
@@ -118,78 +209,116 @@ public partial class FlyoutWindow : Window
 
     public void UpdateConnected(string name, bool connected)
     {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(() => UpdateConnected(name, connected));
+            return;
+        }
+
         TxtName.Text = name;
-        TxtStatus.Text = connected ? "Connected" : "Disconnected";
+        TxtStatus.Text = connected ? "Подключено" : "Отключено";
     }
 
-    public void SetStatus(string text) => TxtStatus.Text = text;
+    public void SetStatus(string text)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(() => SetStatus(text));
+            return;
+        }
+
+        TxtStatus.Text = text;
+    }
 
     public void UpdateAnc(Protocol.AncMode? mode)
     {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(() => UpdateAnc(mode));
+            return;
+        }
+
         _anc = mode;
         RefreshAnc();
     }
 
     public void UpdateBass(bool enabled, int level)
     {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(() => UpdateBass(enabled, level));
+            return;
+        }
+
         _bassOn = enabled;
         _bassLevel = Math.Clamp(level, 0, MaxBass);
         RefreshBass();
     }
 
+    public void UpdateAudioSource(bool phoneActive)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(() => UpdateAudioSource(phoneActive));
+            return;
+        }
+
+        _phoneAudioActive = phoneActive;
+        RefreshAudioSource();
+    }
+
     // ---------- visuals ----------
+    private void RefreshAudioSource()
+    {
+        if (_phoneAudioActive)
+        {
+            AudioSwitchBorder.BorderBrush = _accentBrush;
+            AudioSwitchBorder.BorderThickness = new Thickness(1);
+            AudioSwitchBorder.Background = _subtleBrush;
+            AudioSwitchBtnBorder.Background = _accentBrush;
+            TxtAudioBtn.Foreground = _contrastBrush;
+            TxtAudioIcon.Text = "📱";
+            TxtAudioBtn.Text = "Вернуть на ПК";
+        }
+        else
+        {
+            AudioSwitchBorder.BorderBrush = Clear;
+            AudioSwitchBorder.BorderThickness = new Thickness(0);
+            AudioSwitchBorder.Background = (Brush)FindResource("InsetBg");
+            AudioSwitchBtnBorder.Background = _subtleBrush;
+            TxtAudioBtn.Foreground = White;
+            TxtAudioIcon.Text = "💻";
+            TxtAudioBtn.Text = "Отдать телефону";
+        }
+    }
+
     private void RefreshAnc()
     {
         bool nc = _anc is Protocol.AncMode.AncHigh or Protocol.AncMode.AncMid or Protocol.AncMode.AncLow;
         bool tr = _anc == Protocol.AncMode.Transparency;
         bool off = _anc == Protocol.AncMode.Off;
 
-        SegNoise.Background = nc ? White : Clear;
-        NoiseRing.Stroke = nc ? Dark : White;
-        NoiseDot.Fill = nc ? Dark : White;
+        SegNoise.Background = nc ? _accentBrush : Clear;
+        NoiseRing.Stroke = nc ? _contrastBrush : White;
+        NoiseDot.Fill = nc ? _contrastBrush : White;
 
-        SegTrans.Background = tr ? White : Clear;
-        TransRing.Stroke = tr ? Dark : White;
-        TransDot.Fill = tr ? Dark : White;
+        SegTrans.Background = tr ? _accentBrush : Clear;
+        TransRing.Stroke = tr ? _contrastBrush : White;
+        TransDot.Fill = tr ? _contrastBrush : White;
 
-        SegOff.Background = off ? White : Clear;
-        OffRing.Stroke = off ? Dark : White;
-        OffLine.Stroke = off ? Dark : White;
+        SegOff.Background = off ? _accentBrush : Clear;
+        OffRing.Stroke = off ? _contrastBrush : White;
+        OffLine.Stroke = off ? _contrastBrush : White;
     }
 
     private void RefreshBass()
     {
-        BassToggleBg.Background = _bassOn
-            ? new SolidColorBrush(Color.FromRgb(0xFF, 0xFF, 0xFF))
-            : (Brush)FindResource("InsetBg");
-        BassKnob.Fill = _bassOn ? Dark : White;
+        BassToggleBg.Background = _bassOn ? _accentBrush : (Brush)FindResource("InsetBg");
+        BassKnob.Fill = _bassOn ? _contrastBrush : White;
         BassKnob.HorizontalAlignment = _bassOn ? HorizontalAlignment.Right : HorizontalAlignment.Left;
 
-        BassFill.Width = _bassLevel <= 0 ? 0 : _bassLevel / (double)MaxBass * SliderSpan;
-    }
-
-    // ---------- show / hide ----------
-    public void ShowAtTray()
-    {
-        Show();
-        UpdateLayout();
-        var wa = SystemParameters.WorkArea;
-        Left = wa.Right - ActualWidth - 12;
-        Top = wa.Bottom - ActualHeight - 12;
-        Activate();
-        OnShown?.Invoke();
-    }
-
-    public void ToggleAtTray()
-    {
-        if (IsVisible) { Hide(); _lastHide = DateTime.UtcNow; return; }
-        if ((DateTime.UtcNow - _lastHide).TotalMilliseconds < 300) return;
-        ShowAtTray();
-    }
-
-    private void Window_Deactivated(object sender, EventArgs e)
-    {
-        Hide();
-        _lastHide = DateTime.UtcNow;
+        BassSlider.Opacity = _bassOn ? 1.0 : 0.35;
+        BassFill.Background = _accentBrush;
+        BassFill.Width = Math.Clamp((double)_bassLevel / MaxBass * SliderSpan, 0, SliderSpan);
     }
 }

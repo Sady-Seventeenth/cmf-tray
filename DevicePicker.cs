@@ -11,8 +11,8 @@ public sealed class DevicePicker : Form
     public DevicePicker(IReadOnlyList<RfcommClient.Candidate> items)
     {
         _items = items;
-        Text = "Choose earbuds";
-        Width = 360;
+        Text = "Выбор наушников";
+        Width = 380;
         Height = 300;
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -24,8 +24,8 @@ public sealed class DevicePicker : Form
         if (_list.Items.Count > 0) _list.SelectedIndex = 0;
         _list.DoubleClick += (_, _) => Accept();
 
-        var ok = new Button { Text = "Connect", DialogResult = DialogResult.OK, Dock = DockStyle.Right, Width = 90 };
-        var cancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, Dock = DockStyle.Right, Width = 90 };
+        var ok = new Button { Text = "Подключить", DialogResult = DialogResult.OK, Dock = DockStyle.Right, Width = 110 };
+        var cancel = new Button { Text = "Отмена", DialogResult = DialogResult.Cancel, Dock = DockStyle.Right, Width = 90 };
         ok.Click += (_, _) => Accept();
 
         var bottom = new Panel { Dock = DockStyle.Bottom, Height = 40, Padding = new Padding(6) };

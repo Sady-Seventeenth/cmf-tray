@@ -86,7 +86,17 @@ public static class Protocol
     public static byte[] SetEq(byte preset)     => Build(CmdSetEq, preset, 0x00);
     public static byte[] SetListenMode(byte m)  => Build(CmdSetListenMode, m, 0x00);
     public static byte[] SetLatency(bool on)    => Build(CmdSetLatency, (byte)(on ? 0x01 : 0x02), 0x00);
+    public static byte[] ReadLatency()          => Build(CmdReadLatency);
     public static byte[] ReadEnhancedBass()     => Build(CmdReadEnhancedBass);
+
+    public static bool? ParseLatency(byte[] d)
+    {
+        if (d.Length < 9) return null;
+        byte val = d[8];
+        if (val == 0x01) return true;
+        if (val == 0x02 || val == 0x00) return false;
+        return val != 0;
+    }
 
     /// <summary>Ultra bass: payload [enabled, level*2]. Supported on CMF (B172/B168) per ear-web.</summary>
     public static byte[] SetEnhancedBass(bool enabled, int level) =>

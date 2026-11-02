@@ -9,6 +9,7 @@
     <UseWPF>true</UseWPF>
     <AssemblyName>CmfTray</AssemblyName>
     <RootNamespace>CmfTray</RootNamespace>
+    <ApplicationIcon>app.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <!-- Allow console output when launched with the probe flag -->
     <DisableWinExeOutputInference>true</DisableWinExeOutputInference>

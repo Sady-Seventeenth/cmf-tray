@@ -26,7 +26,7 @@ public sealed class RfcommClient : IDisposable
 
     public sealed record Candidate(string Name, BluetoothAddress Address, bool Authenticated, bool Connected);
 
-    /// <summary>Paired devices whose name looks like Nothing/CMF earbuds (best guess, plus everything else).</summary>
+    /// <summary>Paired devices with priority scoring for earbuds over other devices.</summary>
     public static IReadOnlyList<Candidate> ListPairedEarbuds()
     {
         using var cli = new BluetoothClient();
@@ -34,14 +34,26 @@ public sealed class RfcommClient : IDisposable
             .Select(d => new Candidate(d.DeviceName ?? "(unknown)", d.DeviceAddress, d.Authenticated, d.Connected))
             .ToList();
 
-        static bool Looks(string n) =>
-            n.Contains("CMF", StringComparison.OrdinalIgnoreCase) ||
-            n.Contains("Nothing", StringComparison.OrdinalIgnoreCase) ||
-            n.Contains("Buds", StringComparison.OrdinalIgnoreCase) ||
-            n.Contains("Ear", StringComparison.OrdinalIgnoreCase);
+        static int Priority(Candidate c)
+        {
+            string n = c.Name;
+            // Telephones must never be automatically selected
+            if (n.Contains("Phone", StringComparison.OrdinalIgnoreCase))
+                return 0;
 
-        // Likely earbuds first, then the rest so the user can still pick.
-        return all.OrderByDescending(c => Looks(c.Name)).ToList();
+            bool isEarbuds = n.Contains("CMF", StringComparison.OrdinalIgnoreCase) ||
+                            n.Contains("Buds", StringComparison.OrdinalIgnoreCase) ||
+                            n.Contains("Ear", StringComparison.OrdinalIgnoreCase) ||
+                            n.Contains("Nothing", StringComparison.OrdinalIgnoreCase);
+
+            if (!isEarbuds)
+                return 1;
+
+            // Earbuds: connected takes precedence
+            return c.Connected ? 4 : 2;
+        }
+
+        return all.OrderByDescending(Priority).ToList();
     }
 
     public void Connect(BluetoothAddress address, string name)
@@ -82,7 +94,7 @@ public sealed class RfcommClient : IDisposable
                 DrainFrames(acc);
             }
         }
-        catch (Exception ex) when (_running)
+        catch (Exception ex)
         {
             Log?.Invoke($"Read error: {ex.Message}");
         }
