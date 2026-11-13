@@ -26,7 +26,7 @@ public static class Protocol
     public const ushort CmdReadBattery     = 0xC007; // 49159
     public const ushort CmdReadFirmware    = 0xC042; // 49218
     public const ushort CmdSetLatency      = 0xF040; // 61504  payload [0x01,0x00]=on, [0x02,0x00]=off
-    public const ushort CmdReadLatency     = 0xC040; // 49216
+    public const ushort CmdReadLatency     = 0xC041; // 49217
     public const ushort CmdSetInEar        = 0xF004; // 61444
     public const ushort CmdSetEnhancedBass = 0xF051; // 61521  payload [enabled, level*2]   (CMF)
     public const ushort CmdReadEnhancedBass= 0xC04E; // 49230
@@ -92,10 +92,12 @@ public static class Protocol
     public static bool? ParseLatency(byte[] d)
     {
         if (d.Length < 9) return null;
+        int payloadLen = d[5] | (d[6] << 8);
+        if (payloadLen < 1 || d.Length < 8 + payloadLen) return null;
         byte val = d[8];
         if (val == 0x01) return true;
         if (val == 0x02 || val == 0x00) return false;
-        return val != 0;
+        return null;
     }
 
     /// <summary>Ultra bass: payload [enabled, level*2]. Supported on CMF (B172/B168) per ear-web.</summary>

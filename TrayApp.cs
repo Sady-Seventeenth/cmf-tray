@@ -296,7 +296,7 @@ public sealed class TrayApp : IDisposable
                 Post(() => { _bassEnabled = enabled; _bassLevel = level; _flyout.UpdateBass(enabled, level); });
                 break;
             }
-            case 0x4040:
+            case 0x4041 or 0x4040:
             {
                 var l = Protocol.ParseLatency(frame);
                 if (l.HasValue) _lowLag = l.Value;

@@ -83,6 +83,34 @@ public partial class FlyoutWindow : Window
 
     [DllImport("user32.dll")] private static extern int SetWindowCompositionAttribute(IntPtr hwnd, ref WindowCompositionAttributeData data);
     [DllImport("dwmapi.dll")] private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int val, int size);
+    [DllImport("user32.dll", SetLastError = true)] private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+    [DllImport("user32.dll")] private static extern IntPtr MonitorFromPoint(POINT pt, uint dwFlags);
+    [DllImport("shcore.dll")] private static extern int GetDpiForMonitor(IntPtr hmonitor, int dpiType, out uint dpiX, out uint dpiY);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct POINT { public int X; public int Y; }
+
+    private const uint SWP_NOZORDER = 0x0004;
+    private const uint SWP_NOACTIVATE = 0x0010;
+
+    private static double GetScreenDpiScale(System.Windows.Forms.Screen screen)
+    {
+        try
+        {
+            var pt = new POINT
+            {
+                X = screen.Bounds.Left + screen.Bounds.Width / 2,
+                Y = screen.Bounds.Top + screen.Bounds.Height / 2
+            };
+            IntPtr hMon = MonitorFromPoint(pt, 2);
+            if (hMon != IntPtr.Zero && GetDpiForMonitor(hMon, 0, out uint dx, out _) == 0 && dx > 0)
+            {
+                return dx / 96.0;
+            }
+        }
+        catch { }
+        return 1.0;
+    }
 
     protected override void OnSourceInitialized(EventArgs e)
     {
@@ -149,11 +177,41 @@ public partial class FlyoutWindow : Window
 
     private void PositionAboveTray()
     {
-        var wa = SystemParameters.WorkArea;
-        double w = 360;
-        double h = 260;
-        Left = wa.Right - w - 12;
-        Top  = wa.Bottom - h - 12;
+        var mouse = System.Windows.Forms.Cursor.Position;
+        var screen = System.Windows.Forms.Screen.FromPoint(mouse)
+                     ?? System.Windows.Forms.Screen.PrimaryScreen
+                     ?? System.Windows.Forms.Screen.AllScreens[0];
+
+        var wa = screen.WorkingArea;
+        double scale = GetScreenDpiScale(screen);
+
+        double dipW = ActualWidth > 100 ? ActualWidth : 360;
+        double dipH = ActualHeight > 100 ? ActualHeight : 265;
+
+        int pixelW = (int)Math.Round(dipW * scale);
+        int pixelH = (int)Math.Round(dipH * scale);
+        int margin = (int)Math.Round(12 * scale);
+
+        int posX = wa.Right - pixelW - margin;
+        int posY = wa.Bottom - pixelH - margin;
+
+        if (wa.Top > screen.Bounds.Top)
+            posY = wa.Top + margin;
+
+        if (wa.Left > screen.Bounds.Left)
+            posX = wa.Left + margin;
+
+        var hwnd = new WindowInteropHelper(this).EnsureHandle();
+        SetWindowPos(hwnd, IntPtr.Zero, posX, posY, pixelW, pixelH, SWP_NOZORDER | SWP_NOACTIVATE);
+    }
+
+    protected override void OnRenderSizeChanged(SizeChangedInfo sizeInfo)
+    {
+        base.OnRenderSizeChanged(sizeInfo);
+        if (IsVisible)
+        {
+            PositionAboveTray();
+        }
     }
 
     private void Window_Deactivated(object? sender, EventArgs e)
